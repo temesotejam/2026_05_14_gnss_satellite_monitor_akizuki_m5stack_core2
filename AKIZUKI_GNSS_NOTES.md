@@ -1,78 +1,84 @@
-# Akizuki GNSS Notes
+# 秋月 GNSS メモ
 
-## Overview
+## 概要
 
-This project targets the Akizuki GNSS module:
+このプロジェクトは、秋月電子の GNSS モジュール `GT-505GGBL5-DR-N` を対象にしています。
 
-- Module: `GT-505GGBL5-DR-N`
-- Board: `M5Stack Core2`
-- Interface: `UART/TTL`
+- モジュール: `GT-505GGBL5-DR-N`
+- ボード: `M5Stack Core2`
+- 通信方式: `UART/TTL`
 
-The current monitor program parses these NMEA sentences:
+現在のモニタプログラムでは、以下の NMEA 文を解析しています。
 
 - `GGA`
 - `GSA`
 - `GSV`
 - `RMC`
 
-The purpose is to understand:
+主な目的は次の確認です。
 
-- current fix state
-- current position
-- satellites used for the navigation solution
-- satellites visible to the receiver
-- per-satellite signal strength, elevation, and azimuth
+- 現在の測位状態
+- 現在位置
+- 測位計算に使われている衛星
+- 受信機から見えている衛星
+- 各衛星の信号強度、仰角、方位角
 
-## Current Hardware Setup
+## 現在のハードウェア構成
 
-The current working Core2-side UART setup is:
+現在確認できている Core2 側の UART 設定は以下です。
 
 - `Serial2`
 - `RX = GPIO13`
 - `TX = GPIO14`
 - `baudrate = 115200`
 
-## Confirmed Module Facts
+## 現時点で確認できているモジュール情報
 
-These points were confirmed from the module datasheet and actual behavior.
+以下はデータシートと実機挙動から確認できた内容です。
 
-### Datasheet-based facts
+### データシートから確認できたこと
 
-- The module is a multi-GNSS receiver.
-- Supported systems include:
+- このモジュールはマルチ GNSS 受信機です。
+- 対応している衛星系:
   - `GPS`
   - `QZSS`
   - `GLONASS`
   - `Galileo`
   - `BeiDou`
   - `SBAS`
-- Default update rate is `10 Hz`.
-- Default UART baudrate is `115200 bps`.
-- The module supports UART baudrates from `9600` to `961200 bps`.
-- NMEA protocol version is listed as `NMEA 0183 Ver. 4.00 / 4.10`.
+- デフォルト更新周期は `10 Hz`
+- デフォルト UART baudrate は `115200 bps`
+- UART baudrate は `9600` から `961200` まで設定可能
+- NMEA プロトコルは `NMEA 0183 Ver. 4.00 / 4.10`
 
-### NMEA field details confirmed from the datasheet
+### NMEA の各文について
 
 #### GGA
 
-- `GGA` contains:
-  - fix quality
-  - latitude / longitude
-  - HDOP
-  - altitude
-  - `Satellites Used`
-- The datasheet states `Satellites Used` range is `00 ~ 56`.
+`GGA` から取得できるもの:
+
+- fix quality
+- 緯度 / 経度
+- HDOP
+- 高度
+- `Satellites Used`
+
+データシートでは `Satellites Used` の範囲は `00 ~ 56` とされています。
 
 #### GSA
 
-- `GSA` contains:
-  - fix type
-  - the satellite IDs actually used for navigation
-  - `PDOP`, `HDOP`, `VDOP`
-  - `GNSS System ID`
-- One `GSA` sentence can include at most `12` satellite IDs.
-- The module may output multiple `GSA` sentences across multiple GNSS systems.
-- The datasheet defines `GNSS System ID` as:
+`GSA` から取得できるもの:
+
+- fix type
+- 実際に測位に使われている衛星 ID
+- `PDOP`, `HDOP`, `VDOP`
+- `GNSS System ID`
+
+注意点:
+
+- 1つの `GSA` 文に入る衛星 ID は最大 `12`
+- GNSS 系ごとに複数の `GSA` が出る可能性がある
+- データシートでの `GNSS System ID` は以下:
   - `1 = GPS`
   - `2 = GLONASS`
   - `3 = GALILEO`
@@ -80,66 +86,70 @@ These points were confirmed from the module datasheet and actual behavior.
 
 #### GSV
 
-- `GSV` contains:
-  - satellites in view
-  - satellite ID
-  - elevation
-  - azimuth
-  - `SNR / C/N0`
-- `GSV` is split across multiple messages.
-- One `GSV` message contains up to `4` satellites.
+`GSV` から取得できるもの:
 
-## Important Interpretation Notes
+- 見えている衛星数
+- 衛星 ID
+- 仰角
+- 方位角
+- `SNR / C/N0`
 
-### "Used" and "Visible" are different
+注意点:
 
-These must not be treated as the same thing.
+- `GSV` は複数文に分割される
+- 1文あたり最大 `4` 衛星
 
-- `Used`:
-  satellites actually used in the navigation solution
-- `Visible`:
-  satellites that are currently visible / tracked / reported in `GSV`
+## 解釈上の重要な注意
 
-The monitor distinguishes them as follows:
+### `Used` と `Visible` は別物
+
+この2つは同じ意味ではありません。
+
+- `Used`
+  - 測位計算に実際に使われている衛星
+- `Visible`
+  - 受信機から見えている / `GSV` で報告されている衛星
+
+現在のモニタでは以下のように区別しています。
 
 - `UsedGGA`
-  - value taken directly from the `GGA` "Satellites Used" field
+  - `GGA` の `Satellites Used` をそのまま表示した値
 - `UsedGSA`
-  - number of satellite IDs actually listed in `GSA`
+  - `GSA` に列挙されている衛星 ID 数
 - `Visible`
-  - merged visible satellite count used by the display
+  - 表示ロジックが最終的に採用している見えている衛星数
 - `GSVSeen`
-  - visible count reported by `GSV`
+  - `GSV` 側の報告数
 
-### Current observed behavior on the Akizuki module
+### 秋月 GNSS で実際に見えた挙動
 
-A key real-world observation from this module was:
+このモジュールでは、次のような値が観測されました。
 
 - `UsedGGA = 41`
 - `UsedGSA = 24`
 - `Visible = GSVSeen`
 
-This means:
+この結果から、少なくとも現時点では次のように考えています。
 
-- the `GSV` side of the parser is likely behaving reasonably
-- the `GGA` "Satellites Used" value is not equivalent to the simple count of IDs seen in `GSA`
+- `GSV` 側の解析は比較的妥当そう
+- `GGA` の `Satellites Used` は、`GSA` に列挙されている衛星数の単純合計とは同じ意味ではない可能性が高い
 
-For practical interpretation, `UsedGSA` is currently the safer indicator of
-"satellites explicitly listed as used by the module", while `UsedGGA` should
-be treated as a module-reported aggregate value.
+実用上は、`UsedGSA` のほうが  
+「実際に使っている衛星 ID 数」に近い指標として扱いやすいです。  
+一方 `UsedGGA` は、モジュールが出している集約値として参考扱いにするのがよさそうです。
 
-## Current Display / Serial Policy
+## 現在の表示方針
 
-The current monitor shows:
+現在の画面・Serial では以下を表示します。
 
 - fix type (`No Fix`, `2D Fix`, `3D Fix`)
-- latitude / longitude / altitude
+- 緯度 / 経度 / 高度
 - `UsedGGA`
 - `UsedGSA`
 - `Visible`
 - `GSVSeen`
 - `HDOP`, `PDOP`, `VDOP`
-- satellite table:
+- 衛星テーブル
   - `SYS`
   - `ID`
   - `USE`
@@ -147,22 +157,22 @@ The current monitor shows:
   - `EL`
   - `AZ`
 
-Satellite list ordering is:
+衛星一覧の並び順は次のとおりです。
 
-1. used satellites first
-2. higher `C/N0` first
-3. unused satellites after that
+1. 使用中の衛星を上に表示
+2. その中で `C/N0` が高い順
+3. 未使用衛星をそのあとに表示
 
-## Current Parsing Rules
+## 現在の解析ルール
 
-### Checksum
+### チェックサム
 
-- NMEA checksum validation is enabled.
-- Sentences with invalid checksums are ignored.
+- NMEA チェックサム検証を有効にしています。
+- チェックサム不正の文は無視します。
 
-### Talker / system handling
+### talker / system の扱い
 
-The code currently handles:
+現在のコードで扱っている talker:
 
 - `GP`
 - `GL`
@@ -172,51 +182,52 @@ The code currently handles:
 - `GQ`
 - `GN`
 
-Additional logic is used for:
+追加ルール:
 
-- `QZSS` IDs around `193 ~ 199`
+- `QZSS` は `193 ~ 199` 付近の衛星 ID を使って判定
 
-### GSA and GSV matching
+### GSA と GSV の照合
 
-The code currently:
+現在のコードでは以下の流れで `USE` を決めています。
 
-1. builds visible satellites from `GSV`
-2. builds used satellite references from `GSA`
-3. marks `USE = *` if a `GSV` satellite is present in `GSA`
+1. `GSV` から見えている衛星一覧を作る
+2. `GSA` から使用中の衛星参照を作る
+3. `GSV` 側の衛星が `GSA` に含まれていれば `USE = *`
 
-## What Is Considered Reliable Right Now
+## 現時点で比較的信頼してよいもの
 
-These items are considered reasonably trustworthy in the current implementation:
+今の実装で比較的信頼してよいと考えている項目:
 
-- fix type from `GSA`
-- latitude / longitude from `GGA` / `RMC`
-- altitude from `GGA`
-- visible satellite table from `GSV`
-- `UsedGSA` count
-- per-satellite `USE` mark based on `GSA` vs `GSV`
+- `GSA` の fix type
+- `GGA` / `RMC` の位置
+- `GGA` の高度
+- `GSV` ベースの衛星一覧
+- `UsedGSA`
+- `GSA` と `GSV` の照合による `USE` マーク
 
-These items should be interpreted more carefully:
+慎重に読むべきもの:
 
 - `UsedGGA`
-  - module-reported aggregate value
-  - may not match the explicit count of IDs listed in `GSA`
+  - モジュール側の集約値の可能性が高い
+  - `GSA` の単純な衛星 ID 数と一致しない場合がある
 
-## Open Questions / Future Checks
+## 今後の確認ポイント
 
-The following are still worth checking later:
+今後さらに見たほうがよい点:
 
-- whether the module emits multiple `GSA` sentences per epoch for different systems
-- whether `GNGSV` mixes multiple systems in ways that require additional separation logic
-- whether the module's `GGA` "Satellites Used" field includes a broader internal count than `GSA`
-- whether logging raw NMEA during a stable outdoor session clarifies the `UsedGGA` vs `UsedGSA` gap
+- GNSS 系ごとに `GSA` が複数文出ているか
+- `GNGSV` が複数衛星系をどのように混在させているか
+- `GGA` の `Satellites Used` が内部的にどのような定義なのか
+- 安定した屋外ログを取ったときに `UsedGGA` と `UsedGSA` の差がどう変わるか
 
-## Repository Notes
+## リポジトリ用メモ
 
-When publishing this project to GitHub, it would be useful to keep:
+GitHub で管理する場合、残しておくとよいもの:
 
-- this note file
-- the datasheet filename reference:
+- このメモファイル
+- データシート名:
   - `YIC-GT-505GGBL5-DR.pdf`
-- a short wiring note in the main README
-- a statement that the current verified UART setting is `115200 bps`
+- README 内の配線メモ
+- 現時点で確認済みの UART 条件:
+  - `115200 bps`
 
