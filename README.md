@@ -1,60 +1,88 @@
-# GNSS Satellite Monitor for Akizuki GT-505 on M5Stack Core2
+# M5Stack Core2 + 秋月 GT-505GGBL5-DR-N GNSS モニタ
 
-## Overview
+## 概要
 
-This PlatformIO project monitors an Akizuki `GT-505GGBL5-DR-N` GNSS module from an `M5Stack Core2`.
+このプロジェクトは、`M5Stack Core2` から秋月電子の GNSS モジュール  
+`GT-505GGBL5-DR-N` を `UART` で受信し、NMEA 文を解析して表示するための `PlatformIO` プロジェクトです。
 
-It receives NMEA data over UART and parses:
+単に緯度・経度を出すだけでなく、以下を確認できるようにしています。
+
+- 現在の測位状態
+- 緯度・経度・高度
+- DOP 値
+- 測位に使われている衛星
+- 見えている衛星
+- 各衛星の `C/N0`、仰角、方位角
+
+## 対応している NMEA 文
+
+現在のコードでは、以下の文を解析しています。
 
 - `GGA`
 - `GSA`
 - `GSV`
 - `RMC`
 
-The display and Serial Monitor are used to inspect:
+役割は次のとおりです。
 
-- current fix type
-- latitude / longitude / altitude
-- DOP values
-- satellites used for navigation
-- satellites visible to the receiver
-- per-satellite C/N0, elevation, and azimuth
+- `GGA`
+  - Fix quality
+  - 緯度・経度
+  - 使用衛星数
+  - HDOP
+  - 高度
+- `GSA`
+  - Fix type
+  - 測位に使っている衛星 ID 一覧
+  - `PDOP`, `HDOP`, `VDOP`
+- `GSV`
+  - 見えている衛星一覧
+  - 衛星 ID
+  - 仰角
+  - 方位角
+  - `C/N0`
+- `RMC`
+  - 位置情報の補助
+  - 速度
 
-## Hardware
+## ハードウェア構成
 
 - Board: `M5Stack Core2`
 - GNSS module: `GT-505GGBL5-DR-N`
 - UART: `Serial2`
 - RX pin: `GPIO13`
 - TX pin: `GPIO14`
-- Verified baudrate: `115200`
+- 確認できている動作 baudrate: `115200`
 
-## Why This Project Exists
+## このプロジェクトで見たいこと
 
-This project was created to compare two GNSS configurations:
+このプロジェクトは、次のような GNSS の違いを見るために作成しました。
 
-1. `M5Stack Core2 + Akizuki GT-505GGBL5-DR-N`
+1. `M5Stack Core2 + 秋月 GT-505GGBL5-DR-N`
 2. `M5Stack CoreS3 + M5Stack GNSS Module / u-blox NEO-M9N`
 
-The focus here is not only position output, but also GNSS satellite behavior:
+特に重要視しているのは以下です。
 
-- which satellites are visible
-- which satellites are used
-- how `GGA`, `GSA`, and `GSV` differ
+- どの衛星が見えているか
+- どの衛星が測位に使われているか
+- `GGA`, `GSA`, `GSV` の意味の違い
 
-## Current Status
+## 現在の表示内容
 
-The project currently parses and displays:
+現在の画面・Serial では主に以下を表示します。
 
-- Fix type from `GSA`
-- Position from `GGA` / `RMC`
-- Altitude from `GGA`
+- `Fix`
+- `Lat`
+- `Lon`
+- `Alt`
 - `UsedGGA`
 - `UsedGSA`
 - `Visible`
 - `GSVSeen`
-- `HDOP`, `PDOP`, `VDOP`
-- satellite table with:
+- `HDOP`
+- `PDOP`
+- `VDOP`
+- 衛星一覧
   - `SYS`
   - `ID`
   - `USE`
@@ -62,28 +90,47 @@ The project currently parses and displays:
   - `EL`
   - `AZ`
 
-## Important Observation
+## 表示値の意味
 
-On this module, `UsedGGA` and `UsedGSA` do not currently match.
+### `UsedGGA`
 
-Example observed values:
+`GGA` の「Satellites Used」欄をそのまま表示した値です。
+
+### `UsedGSA`
+
+`GSA` に実際に列挙されている衛星 ID 数を数えた値です。  
+今のところ、こちらのほうが「実際に使っている衛星数」に近い指標として扱いやすいです。
+
+### `Visible`
+
+表示ロジックが最終的に採用した「見えている衛星数」です。
+
+### `GSVSeen`
+
+`GSV` の satellites in view 欄をもとにした衛星数です。
+
+## 現時点で分かっていること
+
+この秋月 GNSS では、`UsedGGA` と `UsedGSA` が一致しないことが確認されています。
+
+観測例:
 
 - `UsedGGA = 41`
 - `UsedGSA = 24`
 - `Visible = GSVSeen`
 
-This suggests:
+このことから、少なくとも現時点では次のように解釈しています。
 
-- `GSV` parsing is probably reasonable
-- the `GGA` satellite count is not equivalent to a simple count of IDs found in `GSA`
+- `GSV` 側の解析は比較的素直に見えている
+- `GGA` の衛星数は、`GSA` の単純な衛星 ID 数とは同じ意味ではない可能性が高い
 
-For now, `UsedGSA` is the more practical value when interpreting "satellites explicitly listed as used".
+そのため、衛星使用数を見るときは、まず `UsedGSA` を優先して読むのが実用的です。
 
-## Build
+## ビルド方法
 
-This is a PlatformIO project.
+`PlatformIO` プロジェクトです。
 
-Typical commands:
+代表的なコマンド:
 
 ```powershell
 platformio run
@@ -91,18 +138,18 @@ platformio run --target upload
 platformio device monitor -b 115200
 ```
 
-## Notes
+## メモ
 
-Detailed investigation notes are kept here:
+秋月 GNSS についての調査メモは以下にまとめています。
 
 - [AKIZUKI_GNSS_NOTES.md](./AKIZUKI_GNSS_NOTES.md)
 
-## Repository Scope
+## リポジトリに含めるもの
 
-This repository is intended to keep:
+このリポジトリでは、主に以下を管理します。
 
-- source code
-- PlatformIO project files
-- markdown notes
+- ソースコード
+- PlatformIO の設定
+- Markdown の調査メモ
 
-It does not keep build output from `.pio/`.
+`.pio/` などのビルド生成物は含めません。
