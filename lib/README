@@ -1,0 +1,10 @@
+This directory is intended for project specific (private) libraries.
+
+PlatformIO will compile them to static libraries and link them into the
+executable file of this project.
+
+The source code of each library should be placed in an own separate directory
+("lib/your_library_name/[here are source files]"). Please refer to the
+documentation for examples of library structure:
+
+https://docs.platformio.org/page/librarymanager/config.html

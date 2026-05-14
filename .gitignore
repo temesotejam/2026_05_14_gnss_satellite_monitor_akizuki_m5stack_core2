@@ -1,0 +1,11 @@
+.pio/
+.vscode/
+.idea/
+*.bin
+*.elf
+*.map
+*.log
+*.csv
+*.txt
+Thumbs.db
+Desktop.ini
